@@ -36,6 +36,32 @@ class RegistrationController(BaseController):
             # Validate request data with UserSchema (without confirmPassword)
             data = self.user_schema.load(json_data)
             
+            # Additional GitHub username validation during registration
+            github_username = data.get('github_username', '').strip()
+            if github_username:
+                # Check if username already exists in our database
+                from app.models.user import User
+                existing_user = User.find_by_github_username(github_username)
+                if existing_user:
+                    return self.error_response("GitHub username is already taken", 400)
+                
+                # Validate with GitHub API to ensure username exists
+                try:
+                    github_api_url = f"{current_app.config['GITHUB_API_URL']}/users/{github_username}"
+                    response = requests.get(github_api_url, timeout=5)
+                    
+                    if response.status_code == 404:
+                        return self.error_response("GitHub username does not exist", 400)
+                    elif response.status_code != 200:
+                        return self.error_response("Error validating GitHub username", 500)
+                        
+                except requests.RequestException:
+                    # If GitHub API is unavailable, check format only as fallback
+                    import re
+                    if not re.match(r'^[a-zA-Z0-9-]+$', github_username):
+                        return self.error_response("Invalid GitHub username format", 400)
+                    # Continue with registration if format is valid but API is unavailable
+            
             # Create user
             user = self.user_service.create_user(data)
             

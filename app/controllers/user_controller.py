@@ -21,17 +21,36 @@ class UserController(BaseController):
         self.blueprint.add_url_rule('/<int:user_id>', 'get_user', self.get_user, methods=['GET'])
         self.blueprint.add_url_rule('/<int:user_id>', 'update_user', self.update_user, methods=['PUT'])
         self.blueprint.add_url_rule('/<int:user_id>', 'delete_user', self.delete_user, methods=['DELETE'])
-        self.blueprint.add_url_rule('/search', 'search_users', self.search_users, methods=['GET'])
     
     @jwt_required()
     def get_users(self):
-        """Get all users."""
+        """Get all users or search users with optional query parameter."""
         try:
-            users = self.user_service.get_all_users()
+            # Get query parameters
+            query = request.args.get('q', '').strip()
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 20))
             
-            return self.success_response(
-                self.users_schema.dump(users)
-            )
+            # If query is provided, search users; otherwise get all users
+            if query:
+                result = self.user_service.search_users(query, page, per_page)
+                return self.success_response({
+                    'users': self.users_schema.dump(result.items),
+                    'pagination': {
+                        'page': result.page,
+                        'pages': result.pages,
+                        'per_page': result.per_page,
+                        'total': result.total,
+                        'has_next': result.has_next,
+                        'has_prev': result.has_prev
+                    }
+                })
+            else:
+                # Get all users (could add pagination here too if needed)
+                users = self.user_service.get_all_users()
+                return self.success_response(
+                    self.users_schema.dump(users)
+                )
             
         except Exception as e:
             self.logger.error(f"Get users error: {str(e)}")
@@ -106,33 +125,3 @@ class UserController(BaseController):
         except Exception as e:
             self.logger.error(f"Delete user error: {str(e)}")
             return self.error_response("Failed to delete user", 500)
-    
-    @jwt_required()
-    def search_users(self):
-        """Search users."""
-        try:
-            # Get query parameters
-            query = request.args.get('q', '')
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 20))
-            
-            if not query:
-                return self.error_response("Search query is required", 400)
-            
-            result = self.user_service.search_users(query, page, per_page)
-            
-            return self.success_response({
-                'users': self.users_schema.dump(result.items),
-                'pagination': {
-                    'page': result.page,
-                    'pages': result.pages,
-                    'per_page': result.per_page,
-                    'total': result.total,
-                    'has_next': result.has_next,
-                    'has_prev': result.has_prev
-                }
-            })
-            
-        except Exception as e:
-            self.logger.error(f"Search users error: {str(e)}")
-            return self.error_response("Failed to search users", 500)

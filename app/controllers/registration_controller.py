@@ -21,14 +21,20 @@ class RegistrationController(BaseController):
     def register(self):
         """User registration endpoint."""
         try:
-            # Validate request data
-            data = self.validate_json(UserSchema)
+            # Get raw JSON data first
+            json_data = request.get_json()
+            if not json_data:
+                return self.error_response("No JSON data provided", 400)
             
-            # Additional validation for confirm password (frontend specific)
-            if 'confirmPassword' in request.get_json():
-                json_data = request.get_json()
-                if data['password'] != json_data.get('confirmPassword'):
+            # Handle confirmPassword validation before schema validation
+            if 'confirmPassword' in json_data:
+                if json_data.get('password') != json_data.get('confirmPassword'):
                     return self.error_response("Passwords do not match", 400)
+                # Remove confirmPassword before schema validation
+                json_data.pop('confirmPassword')
+            
+            # Validate request data with UserSchema (without confirmPassword)
+            data = self.user_schema.load(json_data)
             
             # Create user
             user = self.user_service.create_user(data)
@@ -41,6 +47,9 @@ class RegistrationController(BaseController):
                 201
             )
             
+        except ValidationError as e:
+            self.logger.warning(f"Validation error: {e.messages}")
+            return self.error_response(f"Validation error: {e.messages}", 400)
         except ValueError as e:
             self.logger.warning(f"Registration failed: {str(e)}")
             return self.error_response(str(e), 400)

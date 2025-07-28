@@ -70,11 +70,13 @@ class Application:
         from app.controllers.auth_controller import AuthController
         from app.controllers.user_controller import UserController
         from app.controllers.main_controller import MainController
+        from app.controllers.registration_controller import RegistrationController
         
         # Register blueprints
         self.app.register_blueprint(MainController().blueprint)
         self.app.register_blueprint(AuthController().blueprint, url_prefix='/api/auth')
         self.app.register_blueprint(UserController().blueprint, url_prefix='/api/users')
+        self.app.register_blueprint(RegistrationController().blueprint)
     
     def _register_error_handlers(self):
         """Register global error handlers."""
@@ -106,9 +108,8 @@ class Application:
             admin_data = {
                 'email': 'admin@example.com',
                 'password': 'admin123',
-                'first_name': 'Admin',
-                'last_name': 'User',
-                'role': 'admin'
+                'name': 'Admin User',
+                'github_username': 'admin-user'
             }
             
             try:

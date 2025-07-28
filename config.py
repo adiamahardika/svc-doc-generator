@@ -13,6 +13,9 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(',')
     
+    # GitHub API settings
+    GITHUB_API_URL = os.environ.get('GITHUB_API_URL') or 'https://api.github.com'
+    
     # Pagination
     POSTS_PER_PAGE = 20
     

@@ -17,50 +17,17 @@ class UserController(BaseController):
     
     def _register_routes(self):
         """Register user routes."""
-        self.blueprint.add_url_rule('', 'create_user', self.create_user, methods=['POST'])
         self.blueprint.add_url_rule('', 'get_users', self.get_users, methods=['GET'])
         self.blueprint.add_url_rule('/<int:user_id>', 'get_user', self.get_user, methods=['GET'])
         self.blueprint.add_url_rule('/<int:user_id>', 'update_user', self.update_user, methods=['PUT'])
         self.blueprint.add_url_rule('/<int:user_id>', 'delete_user', self.delete_user, methods=['DELETE'])
         self.blueprint.add_url_rule('/search', 'search_users', self.search_users, methods=['GET'])
-        self.blueprint.add_url_rule('/<int:user_id>/promote', 'promote_user', self.promote_user, methods=['PUT'])
-    
-    def create_user(self):
-        """Create a new user."""
-        try:
-            # Validate request data
-            data = self.validate_json(UserSchema)
-            
-            # Create user
-            user = self.user_service.create_user(data)
-            
-            return self.success_response(
-                self.user_schema.dump(user),
-                "User created successfully",
-                201
-            )
-            
-        except ValueError as e:
-            return self.error_response(str(e), 400)
-        except Exception as e:
-            self.logger.error(f"Create user error: {str(e)}")
-            return self.error_response("Failed to create user", 500)
     
     @jwt_required()
     def get_users(self):
-        """Get all users (admin only)."""
+        """Get all users."""
         try:
-            # Check if current user is admin
-            current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
-            
-            if not current_user.is_admin:
-                return self.error_response("Admin access required", 403)
-            
-            # Get query parameters
-            include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
-            
-            users = self.user_service.get_all_users(include_inactive)
+            users = self.user_service.get_all_users()
             
             return self.success_response(
                 self.users_schema.dump(users)
@@ -74,11 +41,10 @@ class UserController(BaseController):
     def get_user(self, user_id):
         """Get user by ID."""
         try:
-            # Check permissions (user can get their own info, admin can get any)
+            # Check permissions (user can only get their own info)
             current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
             
-            if current_user_id != user_id and not current_user.is_admin:
+            if current_user_id != user_id:
                 return self.error_response("Access denied", 403)
             
             user = self.user_service.get_user_by_id(user_id)
@@ -97,20 +63,14 @@ class UserController(BaseController):
     def update_user(self, user_id):
         """Update user information."""
         try:
-            # Check permissions
+            # Check permissions (users can only update their own info)
             current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
             
-            if current_user_id != user_id and not current_user.is_admin:
+            if current_user_id != user_id:
                 return self.error_response("Access denied", 403)
             
             # Validate request data
             data = self.validate_json(UserUpdateSchema)
-            
-            # Regular users can't change their role
-            if current_user_id == user_id and not current_user.is_admin:
-                data.pop('role', None)
-                data.pop('is_active', None)
             
             user = self.user_service.update_user(user_id, data)
             
@@ -127,20 +87,15 @@ class UserController(BaseController):
     
     @jwt_required()
     def delete_user(self, user_id):
-        """Delete (deactivate) user."""
+        """Delete user."""
         try:
-            # Check if current user is admin
+            # Users can only delete their own account
             current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
             
-            if not current_user.is_admin:
-                return self.error_response("Admin access required", 403)
+            if current_user_id != user_id:
+                return self.error_response("Access denied", 403)
             
-            # Prevent admin from deleting themselves
-            if current_user_id == user_id:
-                return self.error_response("Cannot delete your own account", 400)
-            
-            user = self.user_service.delete_user(user_id)
+            self.user_service.delete_user(user_id)
             
             return self.success_response(
                 message="User deleted successfully"
@@ -156,13 +111,6 @@ class UserController(BaseController):
     def search_users(self):
         """Search users."""
         try:
-            # Check if current user is admin
-            current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
-            
-            if not current_user.is_admin:
-                return self.error_response("Admin access required", 403)
-            
             # Get query parameters
             query = request.args.get('q', '')
             page = int(request.args.get('page', 1))
@@ -188,27 +136,3 @@ class UserController(BaseController):
         except Exception as e:
             self.logger.error(f"Search users error: {str(e)}")
             return self.error_response("Failed to search users", 500)
-    
-    @jwt_required()
-    def promote_user(self, user_id):
-        """Promote user to admin."""
-        try:
-            # Check if current user is admin
-            current_user_id = get_jwt_identity()
-            current_user = self.user_service.get_user_by_id(current_user_id)
-            
-            if not current_user.is_admin:
-                return self.error_response("Admin access required", 403)
-            
-            user = self.user_service.promote_to_admin(user_id)
-            
-            return self.success_response(
-                self.user_schema.dump(user),
-                "User promoted to admin successfully"
-            )
-            
-        except ValueError as e:
-            return self.error_response(str(e), 404)
-        except Exception as e:
-            self.logger.error(f"Promote user error: {str(e)}")
-            return self.error_response("Failed to promote user", 500)

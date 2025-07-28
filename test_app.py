@@ -49,10 +49,10 @@ class TestUserModel(unittest.TestCase):
     def test_user_creation(self):
         """Test user creation."""
         user_data = {
+            'name': 'Test User',
             'email': 'test@example.com',
-            'password': 'password123',
-            'first_name': 'Test',
-            'last_name': 'User'
+            'github_username': 'testuser',
+            'password': 'password123'
         }
         
         user = User(**user_data)
@@ -60,18 +60,16 @@ class TestUserModel(unittest.TestCase):
         
         self.assertIsNotNone(user.id)
         self.assertEqual(user.email, 'test@example.com')
-        self.assertEqual(user.first_name, 'Test')
-        self.assertEqual(user.last_name, 'User')
-        self.assertEqual(user.full_name, 'Test User')
-        self.assertFalse(user.is_admin)
+        self.assertEqual(user.name, 'Test User')
+        self.assertEqual(user.github_username, 'testuser')
     
     def test_password_hashing(self):
         """Test password hashing and verification."""
         user = User(
+            name='Test User',
             email='test@example.com',
-            password='password123',
-            first_name='Test',
-            last_name='User'
+            github_username='testuser',
+            password='password123'
         )
         
         # Password should be hashed
@@ -87,10 +85,10 @@ class TestUserModel(unittest.TestCase):
         """Test email validation."""
         # Valid email should work
         user = User(
+            name='Test User',
             email='valid@example.com',
-            password='password123',
-            first_name='Test',
-            last_name='User'
+            github_username='validuser',
+            password='password123'
         )
         user.save()
         self.assertEqual(user.email, 'valid@example.com')
@@ -98,42 +96,19 @@ class TestUserModel(unittest.TestCase):
         # Invalid email should raise ValueError
         with self.assertRaises(ValueError):
             invalid_user = User(
+                name='Test User',
                 email='invalid-email',
-                password='password123',
-                first_name='Test',
-                last_name='User'
-            )
-    
-    def test_role_validation(self):
-        """Test role validation."""
-        # Valid role should work
-        admin_user = User(
-            email='admin@example.com',
-            password='password123',
-            first_name='Admin',
-            last_name='User',
-            role='admin'
-        )
-        admin_user.save()
-        self.assertTrue(admin_user.is_admin)
-        
-        # Invalid role should raise ValueError
-        with self.assertRaises(ValueError):
-            invalid_user = User(
-                email='test@example.com',
-                password='password123',
-                first_name='Test',
-                last_name='User',
-                role='invalid_role'
+                github_username='invaliduser',
+                password='password123'
             )
     
     def test_find_by_email(self):
         """Test finding user by email."""
         user = User(
+            name='Find Me',
             email='findme@example.com',
-            password='password123',
-            first_name='Find',
-            last_name='Me'
+            github_username='findme',
+            password='password123'
         )
         user.save()
         
@@ -179,16 +154,17 @@ class TestUserService(unittest.TestCase):
     def test_create_user(self):
         """Test user creation through service."""
         user_data = {
+            'name': 'Service Test',
             'email': 'service@example.com',
-            'password': 'password123',
-            'first_name': 'Service',
-            'last_name': 'Test'
+            'github_username': 'servicetest',
+            'password': 'password123'
         }
         
         user = self.user_service.create_user(user_data)
         
         self.assertIsNotNone(user.id)
         self.assertEqual(user.email, 'service@example.com')
+        self.assertEqual(user.github_username, 'servicetest')
         
         # Should not be able to create duplicate email
         with self.assertRaises(ValueError):
@@ -197,10 +173,10 @@ class TestUserService(unittest.TestCase):
     def test_authenticate_user(self):
         """Test user authentication."""
         user_data = {
+            'name': 'Auth Test',
             'email': 'auth@example.com',
-            'password': 'password123',
-            'first_name': 'Auth',
-            'last_name': 'Test'
+            'github_username': 'authtest',
+            'password': 'password123'
         }
         
         user = self.user_service.create_user(user_data)
@@ -226,33 +202,32 @@ class TestUserService(unittest.TestCase):
     def test_update_user(self):
         """Test user update."""
         user_data = {
+            'name': 'Update Test',
             'email': 'update@example.com',
-            'password': 'password123',
-            'first_name': 'Update',
-            'last_name': 'Test'
+            'github_username': 'updatetest',
+            'password': 'password123'
         }
         
         user = self.user_service.create_user(user_data)
         
         # Update user information
         update_data = {
-            'first_name': 'Updated',
-            'last_name': 'Name'
+            'name': 'Updated Name',
+            'github_username': 'updateduser'
         }
         
         updated_user = self.user_service.update_user(user.id, update_data)
         
-        self.assertEqual(updated_user.first_name, 'Updated')
-        self.assertEqual(updated_user.last_name, 'Name')
-        self.assertEqual(updated_user.full_name, 'Updated Name')
+        self.assertEqual(updated_user.name, 'Updated Name')
+        self.assertEqual(updated_user.github_username, 'updateduser')
     
     def test_delete_user(self):
         """Test user deletion (soft delete)."""
         user_data = {
+            'name': 'Delete Test',
             'email': 'delete@example.com',
-            'password': 'password123',
-            'first_name': 'Delete',
-            'last_name': 'Test'
+            'github_username': 'deletetest',
+            'password': 'password123'
         }
         
         user = self.user_service.create_user(user_data)
@@ -314,10 +289,10 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_user_registration(self):
         """Test user registration."""
         user_data = {
+            'name': 'New User',
             'email': 'newuser@example.com',
-            'password': 'password123',
-            'first_name': 'New',
-            'last_name': 'User'
+            'github_username': 'newuser',
+            'password': 'password123'
         }
         
         response = self.client.post('/api/users', json=user_data)
@@ -326,6 +301,7 @@ class TestAPIEndpoints(unittest.TestCase):
         data = response.get_json()
         self.assertTrue(data['success'])
         self.assertEqual(data['data']['email'], 'newuser@example.com')
+        self.assertEqual(data['data']['github_username'], 'newuser')
 
 
 def run_tests():

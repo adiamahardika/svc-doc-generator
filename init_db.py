@@ -34,11 +34,10 @@ def init_database():
             # Create admin user
             user_service = UserService()
             admin_data = {
+                'name': 'Admin User',
                 'email': admin_email,
-                'password': 'admin123',
-                'first_name': 'Admin',
-                'last_name': 'User',
-                'role': 'admin'
+                'github_username': 'admin-user',
+                'password': 'admin123'
             }
             
             try:
@@ -98,25 +97,22 @@ def create_sample_users():
         
         sample_users = [
             {
+                'name': 'John Doe',
                 'email': 'john.doe@example.com',
-                'password': 'password123',
-                'first_name': 'John',
-                'last_name': 'Doe',
-                'role': 'user'
+                'github_username': 'johndoe',
+                'password': 'password123'
             },
             {
+                'name': 'Jane Smith',
                 'email': 'jane.smith@example.com',
-                'password': 'password123',
-                'first_name': 'Jane',
-                'last_name': 'Smith',
-                'role': 'user'
+                'github_username': 'janesmith',
+                'password': 'password123'
             },
             {
-                'email': 'moderator@example.com',
-                'password': 'password123',
-                'first_name': 'Mod',
-                'last_name': 'Erator',
-                'role': 'moderator'
+                'name': 'Test User',
+                'email': 'test@example.com',
+                'github_username': 'testuser',
+                'password': 'password123'
             }
         ]
         

@@ -33,8 +33,8 @@ class AuthController(BaseController):
             )
             
             # Create tokens
-            access_token = create_access_token(identity=user.id)
-            refresh_token = create_refresh_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
             
             self.logger.info(f"User logged in: {user.email}")
             
@@ -56,10 +56,11 @@ class AuthController(BaseController):
         """Refresh access token."""
         try:
             current_user_id = get_jwt_identity()
-            user = self.user_service.get_user_by_id(current_user_id)
+            # Convert string identity back to int for database lookup
+            user = self.user_service.get_user_by_id(int(current_user_id))
             
             # Create new access token
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
             
             return self.success_response({
                 'access_token': access_token
@@ -81,7 +82,8 @@ class AuthController(BaseController):
         """Get current authenticated user."""
         try:
             current_user_id = get_jwt_identity()
-            user = self.user_service.get_user_by_id(current_user_id)
+            # Convert string identity back to int for database lookup
+            user = self.user_service.get_user_by_id(int(current_user_id))
             
             return self.success_response({
                 'user': user.to_dict()

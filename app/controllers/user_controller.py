@@ -61,7 +61,7 @@ class UserController(BaseController):
         """Get user by ID."""
         try:
             # Check permissions (user can only get their own info)
-            current_user_id = get_jwt_identity()
+            current_user_id = int(get_jwt_identity())
             
             if current_user_id != user_id:
                 return self.error_response("Access denied", 403)
@@ -83,7 +83,7 @@ class UserController(BaseController):
         """Update user information."""
         try:
             # Check permissions (users can only update their own info)
-            current_user_id = get_jwt_identity()
+            current_user_id = int(get_jwt_identity())
             
             if current_user_id != user_id:
                 return self.error_response("Access denied", 403)
@@ -109,7 +109,7 @@ class UserController(BaseController):
         """Delete user."""
         try:
             # Users can only delete their own account
-            current_user_id = get_jwt_identity()
+            current_user_id = int(get_jwt_identity())
             
             if current_user_id != user_id:
                 return self.error_response("Access denied", 403)

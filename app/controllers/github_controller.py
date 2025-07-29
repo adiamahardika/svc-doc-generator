@@ -14,8 +14,8 @@ class GitHubRepositoryQuerySchema(Schema):
 
 class GitHubRepositoryDetailQuerySchema(Schema):
     """Schema for validating GitHub repository detail query parameters."""
-    owner = fields.Str(required=True, validate=lambda x: len(x.strip()) > 0)
     repo_name = fields.Str(required=True, validate=lambda x: len(x.strip()) > 0)
+    path = fields.Str(required=False, allow_none=True, missing="")
     access_token = fields.Str(required=False, allow_none=True)
 
 
@@ -36,7 +36,7 @@ class GitHubController(BaseController):
             methods=['GET']
         )
         self.blueprint.add_url_rule(
-            '/repos/<string:owner>/<string:repo_name>', 
+            '/repository/<string:repo_name>', 
             'get_repository_details', 
             self.get_repository_details, 
             methods=['GET']
@@ -134,29 +134,47 @@ class GitHubController(BaseController):
                 status_code=500
             )
     
-    def get_repository_details(self, owner, repo_name):
+    @jwt_required()
+    def get_repository_details(self, repo_name):
         """
-        Get detailed information about a specific repository.
+        Get contents of a file or directory in a repository for the authenticated user.
         
         Query Parameters:
+        - path (optional): Path to file or directory (empty for root directory)
         - access_token (optional): GitHub access token for authenticated requests
         
         Returns:
-        - 200: Repository details
+        - 200: Repository contents (file or directory listing)
         - 400: Invalid parameters
-        - 404: Repository not found
+        - 401: Authentication required
+        - 404: User, repository, or path not found
+        - 403: Access forbidden
         - 500: Server error
         """
         try:
-            # Get access token from query parameters
+            # Get authenticated user ID from JWT token
+            current_user_id = int(get_jwt_identity())
+            
+            # Get user from database to retrieve github_username (owner)
+            try:
+                current_user = self.user_service.get_user_by_id(current_user_id)
+                github_username = current_user.github_username
+            except ValueError:
+                return self.error_response(
+                    message="User not found",
+                    status_code=404
+                )
+            
+            # Get query parameters
             access_token = request.args.get('access_token')
+            path = request.args.get('path', "")
             
             # Validate input
             schema = GitHubRepositoryDetailQuerySchema()
             try:
                 validated_data = schema.load({
-                    'owner': owner,
                     'repo_name': repo_name,
+                    'path': path,
                     'access_token': access_token
                 })
             except ValidationError as e:
@@ -166,10 +184,11 @@ class GitHubController(BaseController):
                     status_code=400
                 )
             
-            # Call GitHub service
+            # Call GitHub service with authenticated user's github_username as owner
             result = self.github_service.get_repository_details(
-                owner=validated_data['owner'],
+                owner=github_username,
                 repo_name=validated_data['repo_name'],
+                path=validated_data.get('path', ""),
                 access_token=validated_data.get('access_token')
             )
             
@@ -179,7 +198,15 @@ class GitHubController(BaseController):
                     message=result['message']
                 )
             else:
-                status_code = 404 if result.get('error_code') == 'REPOSITORY_NOT_FOUND' else 500
+                # Map error codes to HTTP status codes
+                status_code_map = {
+                    'PATH_NOT_FOUND': 404,
+                    'REPOSITORY_NOT_FOUND': 404,
+                    'ACCESS_FORBIDDEN': 403,
+                    'REQUEST_ERROR': 500
+                }
+                
+                status_code = status_code_map.get(result.get('error_code'), 500)
                 return self.error_response(
                     message=result['message'],
                     status_code=status_code
@@ -188,6 +215,6 @@ class GitHubController(BaseController):
         except Exception as e:
             self.logger.error(f"Unexpected error in get_repository_details: {str(e)}")
             return self.error_response(
-                message="An unexpected error occurred while fetching repository details",
+                message="An unexpected error occurred while fetching repository contents",
                 status_code=500
             )

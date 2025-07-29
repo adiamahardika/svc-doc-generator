@@ -192,52 +192,117 @@ class GitHubService(BaseService):
                 'error_code': 'UNEXPECTED_ERROR'
             }
     
-    def get_repository_details(self, owner: str, repo_name: str, access_token: Optional[str] = None) -> Dict:
+    def get_repository_details(self, owner: str, repo_name: str, path: str = "", access_token: Optional[str] = None) -> Dict:
         """
-        Get detailed information about a specific repository.
+        Get contents of a file or directory in a repository.
         
         Args:
             owner: Repository owner username
             repo_name: Repository name
+            path: Path to file or directory (empty string for root)
             access_token: Optional GitHub access token for authenticated requests
             
         Returns:
-            Dict containing success status and repository data or error message
+            Dict containing success status and repository contents data or error message
         """
         try:
-            url = f"{self.base_url}/repos/{owner}/{repo_name}"
+            # Build URL for contents API
+            if path:
+                url = f"{self.base_url}/repos/{owner}/{repo_name}/contents/{path}"
+            else:
+                url = f"{self.base_url}/repos/{owner}/{repo_name}/contents"
+                
             headers = {
                 'Accept': 'application/vnd.github.v3+json',
                 'User-Agent': 'doc-generator-app'
             }
             
             if access_token:
-                headers['Authorization'] = f'token {access_token}'
+                headers['Authorization'] = f'Bearer {access_token}'
             
-            self.logger.info(f"Fetching repository details for: {owner}/{repo_name}")
+            self.logger.info(f"Fetching repository contents for: {owner}/{repo_name}/{path}")
             
             response = requests.get(url, headers=headers, timeout=self.timeout)
             
             if response.status_code == 200:
-                repo_data = response.json()
-                return {
-                    'success': True,
-                    'data': repo_data,
-                    'message': f'Successfully fetched repository details for {owner}/{repo_name}'
-                }
+                contents_data = response.json()
+                
+                # Transform the response based on whether it's a file or directory
+                if isinstance(contents_data, list):
+                    # Directory contents
+                    transformed_contents = []
+                    for item in contents_data:
+                        transformed_item = {
+                            'name': item.get('name'),
+                            'path': item.get('path'),
+                            'type': item.get('type'),  # file, dir, symlink, submodule
+                            'size': item.get('size'),
+                            'sha': item.get('sha'),
+                            'url': item.get('url'),
+                            'html_url': item.get('html_url'),
+                            'git_url': item.get('git_url'),
+                            'download_url': item.get('download_url'),
+                            '_links': item.get('_links')
+                        }
+                        transformed_contents.append(transformed_item)
+                    
+                    return {
+                        'success': True,
+                        'data': {
+                            'type': 'directory',
+                            'contents': transformed_contents,
+                            'path': path,
+                            'repository': f"{owner}/{repo_name}"
+                        },
+                        'message': f'Successfully fetched directory contents for {owner}/{repo_name}/{path}'
+                    }
+                else:
+                    # Single file
+                    transformed_file = {
+                        'name': contents_data.get('name'),
+                        'path': contents_data.get('path'),
+                        'type': contents_data.get('type'),
+                        'size': contents_data.get('size'),
+                        'sha': contents_data.get('sha'),
+                        'url': contents_data.get('url'),
+                        'html_url': contents_data.get('html_url'),
+                        'git_url': contents_data.get('git_url'),
+                        'download_url': contents_data.get('download_url'),
+                        'content': contents_data.get('content'),  # Base64 encoded content
+                        'encoding': contents_data.get('encoding'),
+                        '_links': contents_data.get('_links')
+                    }
+                    
+                    return {
+                        'success': True,
+                        'data': {
+                            'type': 'file',
+                            'file': transformed_file,
+                            'path': path,
+                            'repository': f"{owner}/{repo_name}"
+                        },
+                        'message': f'Successfully fetched file contents for {owner}/{repo_name}/{path}'
+                    }
+                    
             elif response.status_code == 404:
                 return {
                     'success': False,
-                    'message': f'Repository "{owner}/{repo_name}" not found',
-                    'error_code': 'REPOSITORY_NOT_FOUND'
+                    'message': f'Path "{path}" not found in repository "{owner}/{repo_name}"',
+                    'error_code': 'PATH_NOT_FOUND'
+                }
+            elif response.status_code == 403:
+                return {
+                    'success': False,
+                    'message': 'Access forbidden. The repository may be private or you may not have permission.',
+                    'error_code': 'ACCESS_FORBIDDEN'
                 }
             else:
                 response.raise_for_status()
                 
         except Exception as e:
-            self.logger.error(f"Error fetching repository details for {owner}/{repo_name}: {str(e)}")
+            self.logger.error(f"Error fetching repository contents for {owner}/{repo_name}/{path}: {str(e)}")
             return {
                 'success': False,
-                'message': f'Error fetching repository details: {str(e)}',
+                'message': f'Error fetching repository contents: {str(e)}',
                 'error_code': 'REQUEST_ERROR'
             }

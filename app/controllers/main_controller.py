@@ -37,6 +37,7 @@ class MainController(BaseController):
             'endpoints': {
                 'auth': '/api/auth',
                 'users': '/api/users',
+                'github': '/api/github',
                 'health': '/health'
             }
         })

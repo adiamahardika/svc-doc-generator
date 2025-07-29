@@ -71,12 +71,14 @@ class Application:
         from app.controllers.user_controller import UserController
         from app.controllers.main_controller import MainController
         from app.controllers.registration_controller import RegistrationController
+        from app.controllers.github_controller import GitHubController
         
         # Register blueprints
         self.app.register_blueprint(MainController().blueprint)
         self.app.register_blueprint(AuthController().blueprint, url_prefix='/api/auth')
         self.app.register_blueprint(UserController().blueprint, url_prefix='/api/users')
         self.app.register_blueprint(RegistrationController().blueprint)
+        self.app.register_blueprint(GitHubController().blueprint)
     
     def _register_error_handlers(self):
         """Register global error handlers."""

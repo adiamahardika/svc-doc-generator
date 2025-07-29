@@ -15,6 +15,8 @@ class Config:
     
     # GitHub API settings
     GITHUB_API_URL = os.environ.get('GITHUB_API_URL') or 'https://api.github.com'
+    GITHUB_API_TIMEOUT = int(os.environ.get('GITHUB_API_TIMEOUT', '30'))
+    GITHUB_API_PER_PAGE = int(os.environ.get('GITHUB_API_PER_PAGE', '100'))
     
     # Pagination
     POSTS_PER_PAGE = 20

@@ -8,8 +8,12 @@ from marshmallow import Schema, fields, ValidationError
 
 class GitHubRepositoryQuerySchema(Schema):
     """Schema for validating GitHub repository query parameters."""
-    repo_name = fields.Str(required=False, allow_none=True, validate=lambda x: x is None or len(x.strip()) > 0)
+    search = fields.Str(required=False, allow_none=True, validate=lambda x: x is None or len(x.strip()) > 0)
     access_token = fields.Str(required=False, allow_none=True)
+    page = fields.Int(required=False, missing=1, validate=lambda x: x >= 1)
+    per_page = fields.Int(required=False, missing=30, validate=lambda x: 1 <= x <= 100)
+    sort = fields.Str(required=False, missing='updated_at', validate=lambda x: x in ['updated_at', 'name'])
+    order = fields.Str(required=False, missing='desc', validate=lambda x: x in ['asc', 'desc'])
 
 
 class GitHubRepositoryDetailQuerySchema(Schema):
@@ -48,7 +52,7 @@ class GitHubController(BaseController):
         Get repositories for the authenticated user.
         
         Query Parameters:
-        - repo_name (optional): Repository name to search for
+        - search (optional): Search term for repositories (name, description, etc.)
         - access_token (optional): GitHub access token for authenticated requests
         
         Returns:
@@ -75,14 +79,22 @@ class GitHubController(BaseController):
             
             # Get query parameters
             access_token = request.args.get('access_token')
-            repo_name = request.args.get('repo_name')
+            search = request.args.get('search')
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 30, type=int)
+            sort = request.args.get('sort', 'updated_at')
+            order = request.args.get('order', 'desc')
             
             # Validate input
             schema = GitHubRepositoryQuerySchema()
             try:
                 validated_data = schema.load({
-                    'repo_name': repo_name,
-                    'access_token': access_token
+                    'search': search,
+                    'access_token': access_token,
+                    'page': page,
+                    'per_page': per_page,
+                    'sort': sort,
+                    'order': order
                 })
             except ValidationError as e:
                 return self.error_response(
@@ -94,8 +106,12 @@ class GitHubController(BaseController):
             # Call GitHub service
             result = self.github_service.get_user_repositories(
                 github_username=github_username,
-                repo_name=validated_data.get('repo_name'),
-                access_token=validated_data.get('access_token')
+                search=validated_data.get('search'),
+                access_token=validated_data.get('access_token'),
+                page=validated_data.get('page', 1),
+                per_page=validated_data.get('per_page', 30),
+                sort=validated_data.get('sort', 'updated_at'),
+                order=validated_data.get('order', 'desc')
             )
             
             if result['success']:
@@ -104,7 +120,18 @@ class GitHubController(BaseController):
                         'repositories': result['data'],
                         'total_count': result['total_count'],
                         'returned_count': result['returned_count'],
-                        'github_username': github_username
+                        'github_username': github_username,
+                        'pagination': {
+                            'page': validated_data.get('page', 1),
+                            'per_page': validated_data.get('per_page', 30),
+                            'total_pages': result.get('total_pages', 1),
+                            'has_next_page': result.get('has_next_page', False),
+                            'has_prev_page': result.get('has_prev_page', False)
+                        },
+                        'sort': {
+                            'sort_by': validated_data.get('sort', 'updated_at'),
+                            'order': validated_data.get('order', 'desc')
+                        }
                     },
                     message=result['message']
                 )

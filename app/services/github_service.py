@@ -1,4 +1,5 @@
 import requests
+import requests
 from app.services.base_service import BaseService
 from typing import List, Dict, Optional
 from flask import current_app
@@ -35,14 +36,18 @@ class GitHubService(BaseService):
             self._per_page = current_app.config.get('GITHUB_API_PER_PAGE', 100)
         return self._per_page
     
-    def get_user_repositories(self, github_username: str, repo_name: Optional[str] = None, access_token: Optional[str] = None) -> Dict:
+    def get_user_repositories(self, github_username: str, search: Optional[str] = None, access_token: Optional[str] = None, page: int = 1, per_page: int = 30, sort: str = 'updated_at', order: str = 'desc') -> Dict:
         """
         Get repositories for a GitHub user using GitHub Search API.
         
         Args:
             github_username: The GitHub username
-            repo_name: Optional repository name to search for
+            search: Optional search term for repositories (searches in name and description)
             access_token: Optional GitHub access token for authenticated requests
+            page: Page number (1-based)
+            per_page: Number of results per page (1-100)
+            sort: Sort field (updated_at, name)
+            order: Sort order (asc, desc)
             
         Returns:
             Dict containing success status and repositories data or error message
@@ -59,18 +64,28 @@ class GitHubService(BaseService):
                 headers['Authorization'] = f'Bearer {access_token}'
             
             # Add query parameters for search API
-            if repo_name:
-                search_query = f'{repo_name} user:{github_username} in:name'
-                log_message = f"Fetching repositories for user: {github_username} with repo name: {repo_name}"
+            if search:
+                search_query = f'{search} user:{github_username}'
+                log_message = f"Fetching repositories for user: {github_username} with search term: {search} (page {page}, per_page {per_page}, sort {sort} {order})"
             else:
                 search_query = f'user:{github_username}'
-                log_message = f"Fetching repositories for user: {github_username}"
+                log_message = f"Fetching repositories for user: {github_username} (page {page}, per_page {per_page}, sort {sort} {order})"
+
+            # Map sort parameter for GitHub API
+            github_sort = sort
+            if sort == 'name':
+                github_sort = 'name'  # GitHub API uses 'name' for name sorting
+            elif sort == 'updated_at':
+                github_sort = 'updated'  # GitHub API uses 'updated' for updated_at sorting
+            else:
+                github_sort = sort
 
             params = {
                 'q': search_query,  # Search query for user repositories with optional repo name
-                'sort': 'updated',  # created, updated, pushed, full_name
-                'order': 'desc',  # asc, desc
-                'per_page': self.per_page  # Max repositories per page
+                'sort': github_sort,  # GitHub API sort parameter
+                'order': order,  # asc, desc
+                'page': page,  # Page number
+                'per_page': min(per_page, 100)  # Max repositories per page (GitHub limit is 100)
             }
             print(params)  # Debugging line
             self.logger.info(log_message)
@@ -126,12 +141,20 @@ class GitHubService(BaseService):
                     }
                     transformed_repos.append(transformed_repo)
                 
+                # Calculate pagination metadata
+                total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+                has_next_page = page < total_pages
+                has_prev_page = page > 1
+                
                 return {
                     'success': True,
                     'data': transformed_repos,
                     'total_count': total_count,
                     'returned_count': len(transformed_repos),
-                    'message': f'Successfully fetched {len(transformed_repos)} repositories out of {total_count} total'
+                    'total_pages': total_pages,
+                    'has_next_page': has_next_page,
+                    'has_prev_page': has_prev_page,
+                    'message': f'Successfully fetched {len(transformed_repos)} repositories out of {total_count} total (page {page} of {total_pages})'
                 }
                 
             elif response.status_code == 422:

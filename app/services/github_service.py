@@ -1,5 +1,4 @@
 import requests
-import requests
 from app.services.base_service import BaseService
 from typing import List, Dict, Optional
 from flask import current_app
@@ -215,7 +214,7 @@ class GitHubService(BaseService):
                 'error_code': 'UNEXPECTED_ERROR'
             }
     
-    def get_repository_details(self, owner: str, repo_name: str, path: str = "", access_token: Optional[str] = None) -> Dict:
+    def get_repository_details(self, owner: str, repo_name: str, path: str = "", branch: str = "main", access_token: Optional[str] = None) -> Dict:
         """
         Get contents of a file or directory in a repository.
         
@@ -223,6 +222,7 @@ class GitHubService(BaseService):
             owner: Repository owner username
             repo_name: Repository name
             path: Path to file or directory (empty string for root)
+            branch: Branch name (default: main)
             access_token: Optional GitHub access token for authenticated requests
             
         Returns:
@@ -243,16 +243,21 @@ class GitHubService(BaseService):
             if access_token:
                 headers['Authorization'] = f'Bearer {access_token}'
             
-            self.logger.info(f"Fetching repository contents for: {owner}/{repo_name}/{path}")
+            # Add branch parameter to the query
+            params = {}
+            if branch and branch != 'main':
+                params['ref'] = branch
             
-            response = requests.get(url, headers=headers, timeout=self.timeout)
+            self.logger.info(f"Fetching repository contents for: {owner}/{repo_name}/{path} (branch: {branch})")
+            
+            response = requests.get(url, headers=headers, params=params, timeout=self.timeout)
             
             if response.status_code == 200:
                 contents_data = response.json()
                 
                 # Transform the response based on whether it's a file or directory
                 if isinstance(contents_data, list):
-                    # Directory contents
+                    # Directory contents - return simplified format for frontend
                     transformed_contents = []
                     for item in contents_data:
                         transformed_item = {
@@ -265,22 +270,16 @@ class GitHubService(BaseService):
                             'html_url': item.get('html_url'),
                             'git_url': item.get('git_url'),
                             'download_url': item.get('download_url'),
-                            '_links': item.get('_links')
                         }
                         transformed_contents.append(transformed_item)
                     
                     return {
                         'success': True,
-                        'data': {
-                            'type': 'directory',
-                            'contents': transformed_contents,
-                            'path': path,
-                            'repository': f"{owner}/{repo_name}"
-                        },
-                        'message': f'Successfully fetched directory contents for {owner}/{repo_name}/{path}'
+                        'data': transformed_contents,  # Return array directly for frontend compatibility
+                        'message': f'Successfully fetched {len(transformed_contents)} items for {owner}/{repo_name} at path: {path} (branch: {branch})'
                     }
                 else:
-                    # Single file
+                    # Single file - return file data directly
                     transformed_file = {
                         'name': contents_data.get('name'),
                         'path': contents_data.get('path'),
@@ -293,18 +292,12 @@ class GitHubService(BaseService):
                         'download_url': contents_data.get('download_url'),
                         'content': contents_data.get('content'),  # Base64 encoded content
                         'encoding': contents_data.get('encoding'),
-                        '_links': contents_data.get('_links')
                     }
                     
                     return {
                         'success': True,
-                        'data': {
-                            'type': 'file',
-                            'file': transformed_file,
-                            'path': path,
-                            'repository': f"{owner}/{repo_name}"
-                        },
-                        'message': f'Successfully fetched file contents for {owner}/{repo_name}/{path}'
+                        'data': transformed_file,  # Return file object directly
+                        'message': f'Successfully fetched file content for {owner}/{repo_name} at path: {path} (branch: {branch})'
                     }
                     
             elif response.status_code == 404:
@@ -328,4 +321,103 @@ class GitHubService(BaseService):
                 'success': False,
                 'message': f'Error fetching repository contents: {str(e)}',
                 'error_code': 'REQUEST_ERROR'
+            }
+    
+    def get_repository_branches(self, owner: str, repo_name: str, access_token: Optional[str] = None) -> Dict:
+        """
+        Get branches for a GitHub repository.
+        
+        Args:
+            owner: Repository owner username
+            repo_name: Repository name
+            access_token: Optional GitHub access token for authenticated requests
+            
+        Returns:
+            Dict containing success status and branches data or error message
+        """
+        try:
+            url = f"{self.base_url}/repos/{owner}/{repo_name}/branches"
+            headers = {
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'doc-generator-app'
+            }
+            
+            if access_token:
+                headers['Authorization'] = f'Bearer {access_token}'
+            
+            self.logger.info(f"Fetching branches for repository: {owner}/{repo_name}")
+            
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+            
+            if response.status_code == 200:
+                branches_data = response.json()
+                
+                # Transform the response to include only essential fields
+                transformed_branches = []
+                for branch in branches_data:
+                    transformed_branch = {
+                        'name': branch.get('name'),
+                        'commit': {
+                            'sha': branch.get('commit', {}).get('sha'),
+                            'url': branch.get('commit', {}).get('url')
+                        } if branch.get('commit') else None,
+                        'protected': branch.get('protected'),
+                        'protection': branch.get('protection'),
+                        'protection_url': branch.get('protection_url')
+                    }
+                    transformed_branches.append(transformed_branch)
+                
+                return {
+                    'success': True,
+                    'data': transformed_branches,
+                    'total_count': len(transformed_branches),
+                    'repository': f"{owner}/{repo_name}",
+                    'message': f'Successfully fetched {len(transformed_branches)} branches for {owner}/{repo_name}'
+                }
+                
+            elif response.status_code == 404:
+                return {
+                    'success': False,
+                    'message': f'Repository "{owner}/{repo_name}" not found',
+                    'error_code': 'REPOSITORY_NOT_FOUND'
+                }
+            elif response.status_code == 403:
+                return {
+                    'success': False,
+                    'message': 'Access forbidden. The repository may be private or you may not have permission.',
+                    'error_code': 'ACCESS_FORBIDDEN'
+                }
+            else:
+                response.raise_for_status()
+                
+        except requests.exceptions.Timeout:
+            self.logger.error(f"Timeout while fetching branches for {owner}/{repo_name}")
+            return {
+                'success': False,
+                'message': 'Request timeout while fetching branches from GitHub',
+                'error_code': 'REQUEST_TIMEOUT'
+            }
+            
+        except requests.exceptions.ConnectionError:
+            self.logger.error(f"Connection error while fetching branches for {owner}/{repo_name}")
+            return {
+                'success': False,
+                'message': 'Connection error while contacting GitHub API',
+                'error_code': 'CONNECTION_ERROR'
+            }
+            
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request error while fetching branches for {owner}/{repo_name}: {str(e)}")
+            return {
+                'success': False,
+                'message': f'Error fetching branches: {str(e)}',
+                'error_code': 'REQUEST_ERROR'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Unexpected error while fetching branches for {owner}/{repo_name}: {str(e)}")
+            return {
+                'success': False,
+                'message': 'An unexpected error occurred while fetching branches',
+                'error_code': 'UNEXPECTED_ERROR'
             }

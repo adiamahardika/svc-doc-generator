@@ -23,6 +23,12 @@ class GitHubRepositoryDetailQuerySchema(Schema):
     access_token = fields.Str(required=False, allow_none=True)
 
 
+class GitHubRepositoryBranchesQuerySchema(Schema):
+    """Schema for validating GitHub repository branches query parameters."""
+    repo_name = fields.Str(required=True, validate=lambda x: len(x.strip()) > 0)
+    access_token = fields.Str(required=False, allow_none=True)
+
+
 class GitHubController(BaseController):
     """Controller for GitHub API integration."""
     
@@ -43,6 +49,12 @@ class GitHubController(BaseController):
             '/repository/<string:repo_name>', 
             'get_repository_details', 
             self.get_repository_details, 
+            methods=['GET']
+        )
+        self.blueprint.add_url_rule(
+            '/repository/<string:repo_name>/branches', 
+            'get_repository_branches', 
+            self.get_repository_branches, 
             methods=['GET']
         )
     
@@ -195,6 +207,7 @@ class GitHubController(BaseController):
             # Get query parameters
             access_token = request.args.get('access_token')
             path = request.args.get('path', "")
+            branch = request.args.get('branch', 'main')
             
             # Validate input
             schema = GitHubRepositoryDetailQuerySchema()
@@ -216,6 +229,7 @@ class GitHubController(BaseController):
                 owner=github_username,
                 repo_name=validated_data['repo_name'],
                 path=validated_data.get('path', ""),
+                branch=branch,
                 access_token=validated_data.get('access_token')
             )
             
@@ -243,5 +257,92 @@ class GitHubController(BaseController):
             self.logger.error(f"Unexpected error in get_repository_details: {str(e)}")
             return self.error_response(
                 message="An unexpected error occurred while fetching repository contents",
+                status_code=500
+            )
+    
+    @jwt_required()
+    def get_repository_branches(self, repo_name):
+        """
+        Get branches for a repository of the authenticated user.
+        
+        Query Parameters:
+        - access_token (optional): GitHub access token for authenticated requests
+        
+        Returns:
+        - 200: List of repository branches
+        - 400: Invalid parameters
+        - 401: Authentication required
+        - 404: User or repository not found
+        - 403: Access forbidden
+        - 500: Server error
+        """
+        try:
+            # Get authenticated user ID from JWT token
+            current_user_id = int(get_jwt_identity())
+            
+            # Get user from database to retrieve github_username (owner)
+            try:
+                current_user = self.user_service.get_user_by_id(current_user_id)
+                github_username = current_user.github_username
+            except ValueError:
+                return self.error_response(
+                    message="User not found",
+                    status_code=404
+                )
+            
+            # Get query parameters
+            access_token = request.args.get('access_token')
+            
+            # Validate input
+            schema = GitHubRepositoryBranchesQuerySchema()
+            try:
+                validated_data = schema.load({
+                    'repo_name': repo_name,
+                    'access_token': access_token
+                })
+            except ValidationError as e:
+                return self.error_response(
+                    message="Invalid parameters",
+                    errors=e.messages,
+                    status_code=400
+                )
+            
+            # Call GitHub service with authenticated user's github_username as owner
+            result = self.github_service.get_repository_branches(
+                owner=github_username,
+                repo_name=validated_data['repo_name'],
+                access_token=validated_data.get('access_token')
+            )
+            
+            if result['success']:
+                return self.success_response(
+                    data={
+                        'branches': result['data'],
+                        'total_count': result['total_count'],
+                        'repository': result['repository']
+                    },
+                    message=result['message']
+                )
+            else:
+                # Map error codes to HTTP status codes
+                status_code_map = {
+                    'REPOSITORY_NOT_FOUND': 404,
+                    'ACCESS_FORBIDDEN': 403,
+                    'REQUEST_TIMEOUT': 408,
+                    'CONNECTION_ERROR': 503,
+                    'REQUEST_ERROR': 502,
+                    'UNEXPECTED_ERROR': 500
+                }
+                
+                status_code = status_code_map.get(result.get('error_code'), 500)
+                return self.error_response(
+                    message=result['message'],
+                    status_code=status_code
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Unexpected error in get_repository_branches: {str(e)}")
+            return self.error_response(
+                message="An unexpected error occurred while fetching repository branches",
                 status_code=500
             )

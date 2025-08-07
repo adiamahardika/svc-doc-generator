@@ -114,6 +114,26 @@ class UserService(BaseService):
         )
         return users
 
+    def change_password(self, user_id, current_password, new_password):
+        """Change user password."""
+        try:
+            user = self.get_user_by_id(user_id)
+            
+            # Verify current password
+            if not user.check_password(current_password):
+                raise ValueError('Current password is incorrect')
+            
+            # Set new password
+            user.set_password(new_password)
+            user.save()
+            
+            self.logger.info(f"Password changed for user: {user.email}")
+            return user
+            
+        except Exception as e:
+            self.logger.error(f"Error changing password for user {user_id}: {str(e)}")
+            raise
+
 
 # Marshmallow Schemas for validation and serialization
 class UserSchema(Schema):
@@ -142,3 +162,11 @@ class UserUpdateSchema(Schema):
     email = fields.Email(validate=validate.Length(max=120))
     github_username = fields.Str(validate=validate.Length(min=3, max=50))
     password = fields.Str(validate=validate.Length(min=8))
+
+
+class ChangePasswordSchema(Schema):
+    """Schema for changing password."""
+    
+    current_password = fields.Str(required=True, validate=validate.Length(min=1))
+    new_password = fields.Str(required=True, validate=validate.Length(min=8))
+    confirm_password = fields.Str(required=True, validate=validate.Length(min=8))

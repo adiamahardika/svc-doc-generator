@@ -72,6 +72,7 @@ class Application:
         from app.controllers.main_controller import MainController
         from app.controllers.registration_controller import RegistrationController
         from app.controllers.github_controller import GitHubController
+        from app.controllers.openai_controller import OpenAIController
         
         # Register blueprints
         self.app.register_blueprint(MainController().blueprint)
@@ -79,6 +80,7 @@ class Application:
         self.app.register_blueprint(UserController().blueprint, url_prefix='/api/users')
         self.app.register_blueprint(RegistrationController().blueprint)
         self.app.register_blueprint(GitHubController().blueprint)
+        self.app.register_blueprint(OpenAIController().blueprint)
     
     def _register_error_handlers(self):
         """Register global error handlers."""

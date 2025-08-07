@@ -18,6 +18,14 @@ class Config:
     GITHUB_API_TIMEOUT = int(os.environ.get('GITHUB_API_TIMEOUT', '30'))
     GITHUB_API_PER_PAGE = int(os.environ.get('GITHUB_API_PER_PAGE', '100'))
     
+    # OpenAI API settings
+    THESIS_OPENAI_API_KEY = os.environ.get('THESIS_OPENAI_API_KEY')
+    OPENAI_API_URL = os.environ.get('OPENAI_API_URL') or 'https://api.openai.com/v1'
+    THESIS_OPENAI_MODEL = os.environ.get('THESIS_OPENAI_MODEL') or 'gpt-3.5-turbo'
+    THESIS_OPENAI_MAX_TOKENS = int(os.environ.get('THESIS_OPENAI_MAX_TOKENS', '2048'))
+    THESIS_OPENAI_TEMPERATURE = float(os.environ.get('THESIS_OPENAI_TEMPERATURE', '0.7'))
+    THESIS_OPENAI_TIMEOUT = int(os.environ.get('THESIS_OPENAI_TIMEOUT', '30'))
+    
     # Pagination
     POSTS_PER_PAGE = 20
     

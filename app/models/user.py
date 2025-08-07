@@ -69,11 +69,6 @@ class User(BaseModel, db.Model):
         """Find user by ID."""
         return cls.query.get(user_id)
     
-    @classmethod
-    def get_all_users(cls):
-        """Get all users."""
-        return cls.query.all()
-    
     def to_dict(self, include_sensitive=False):
         """Convert to dictionary, optionally excluding sensitive data."""
         data = super().to_dict()

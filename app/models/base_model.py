@@ -15,11 +15,6 @@ class BaseModel:
         db.session.commit()
         return self
     
-    def delete(self):
-        """Delete the model from database."""
-        db.session.delete(self)
-        db.session.commit()
-    
     def to_dict(self):
         """Convert model to dictionary."""
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

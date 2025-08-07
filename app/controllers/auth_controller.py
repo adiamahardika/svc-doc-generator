@@ -17,8 +17,6 @@ class AuthController(BaseController):
         """Register authentication routes."""
         self.blueprint.add_url_rule('/login', 'login', self.login, methods=['POST'])
         self.blueprint.add_url_rule('/refresh', 'refresh', self.refresh_token, methods=['POST'])
-        self.blueprint.add_url_rule('/logout', 'logout', self.logout, methods=['POST'])
-        self.blueprint.add_url_rule('/me', 'current_user', self.get_current_user, methods=['GET'])
     
     def login(self):
         """User login endpoint."""
@@ -69,26 +67,3 @@ class AuthController(BaseController):
         except Exception as e:
             self.logger.error(f"Token refresh error: {str(e)}")
             return self.error_response("Token refresh failed", 500)
-    
-    @jwt_required()
-    def logout(self):
-        """User logout endpoint."""
-        # In a real application, you might want to blacklist the token
-        # For now, we'll just return a success message
-        return self.success_response(message="Logout successful")
-    
-    @jwt_required()
-    def get_current_user(self):
-        """Get current authenticated user."""
-        try:
-            current_user_id = get_jwt_identity()
-            # Convert string identity back to int for database lookup
-            user = self.user_service.get_user_by_id(int(current_user_id))
-            
-            return self.success_response({
-                'user': user.to_dict()
-            })
-            
-        except Exception as e:
-            self.logger.error(f"Get current user error: {str(e)}")
-            return self.error_response("Failed to get user info", 500)

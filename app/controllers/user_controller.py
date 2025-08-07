@@ -18,45 +18,9 @@ class UserController(BaseController):
     
     def _register_routes(self):
         """Register user routes."""
-        self.blueprint.add_url_rule('', 'get_users', self.get_users, methods=['GET'])
         self.blueprint.add_url_rule('/<int:user_id>', 'get_user', self.get_user, methods=['GET'])
         self.blueprint.add_url_rule('/<int:user_id>', 'update_user', self.update_user, methods=['PUT'])
-        self.blueprint.add_url_rule('/<int:user_id>', 'delete_user', self.delete_user, methods=['DELETE'])
         self.blueprint.add_url_rule('/<int:user_id>/change-password', 'change_password', self.change_password, methods=['POST'])
-    
-    @jwt_required()
-    def get_users(self):
-        """Get all users or search users with optional query parameter."""
-        try:
-            # Get query parameters
-            query = request.args.get('q', '').strip()
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 20))
-            
-            # If query is provided, search users; otherwise get all users
-            if query:
-                result = self.user_service.search_users(query, page, per_page)
-                return self.success_response({
-                    'users': self.users_schema.dump(result.items),
-                    'pagination': {
-                        'page': result.page,
-                        'pages': result.pages,
-                        'per_page': result.per_page,
-                        'total': result.total,
-                        'has_next': result.has_next,
-                        'has_prev': result.has_prev
-                    }
-                })
-            else:
-                # Get all users (could add pagination here too if needed)
-                users = self.user_service.get_all_users()
-                return self.success_response(
-                    self.users_schema.dump(users)
-                )
-            
-        except Exception as e:
-            self.logger.error(f"Get users error: {str(e)}")
-            return self.error_response("Failed to get users", 500)
     
     @jwt_required()
     def get_user(self, user_id):
@@ -106,28 +70,6 @@ class UserController(BaseController):
             self.logger.error(f"Update user error: {str(e)}")
             return self.error_response("Failed to update user", 500)
     
-    @jwt_required()
-    def delete_user(self, user_id):
-        """Delete user."""
-        try:
-            # Users can only delete their own account
-            current_user_id = int(get_jwt_identity())
-            
-            if current_user_id != user_id:
-                return self.error_response("Access denied", 403)
-            
-            self.user_service.delete_user(user_id)
-            
-            return self.success_response(
-                message="User deleted successfully"
-            )
-            
-        except ValueError as e:
-            return self.error_response(str(e), 404)
-        except Exception as e:
-            self.logger.error(f"Delete user error: {str(e)}")
-            return self.error_response("Failed to delete user", 500)
-
     @jwt_required()
     def change_password(self, user_id):
         """Change user password."""

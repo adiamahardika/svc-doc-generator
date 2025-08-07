@@ -82,37 +82,6 @@ class UserService(BaseService):
         except Exception as e:
             self.logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
-    
-    def delete_user(self, user_id):
-        """Delete user."""
-        try:
-            user = self.get_user_by_id(user_id)
-            user.delete()
-            
-            self.logger.info(f"User deleted: {user.email}")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error deleting user {user_id}: {str(e)}")
-            raise
-    
-    def get_all_users(self):
-        """Get all users."""
-        return self.model.get_all_users()
-    
-    def search_users(self, query, page=1, per_page=20):
-        """Search users by name, email, or GitHub username."""
-        search_term = f"%{query}%"
-        users = self.model.query.filter(
-            db.or_(
-                self.model.email.like(search_term),
-                self.model.name.like(search_term),
-                self.model.github_username.like(search_term)
-            )
-        ).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
-        return users
 
     def change_password(self, user_id, current_password, new_password):
         """Change user password."""

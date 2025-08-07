@@ -13,7 +13,7 @@ class FileItemSchema(Schema):
 
 class DocumentationGenerationSchema(Schema):
     """Schema for documentation generation request."""
-    files = fields.List(fields.Nested(FileItemSchema), required=True, validate=lambda x: 1 <= len(x) <= 10)
+    files = fields.List(fields.Nested(FileItemSchema), required=True, validate=lambda x: 1 <= len(x) <= 5)
 
 
 class CodeAnalysisSchema(Schema):
@@ -70,7 +70,7 @@ class OpenAIController(BaseController):
             ]
         }
         
-        Maximum 10 files per request.
+        Maximum 5 files per request.
         """
         try:
             # Get current user

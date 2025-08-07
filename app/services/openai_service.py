@@ -50,85 +50,6 @@ class OpenAIService(BaseService):
             self.logger.error(f"Error generating documentation from base64: {str(e)}")
             raise Exception(f"Failed to generate documentation: {str(e)}")
     
-    def generate_documentation(self, repo_name: str, file_path: str, access_token: Optional[str] = None, model: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Generate documentation for a file from GitHub repository using OpenAI.
-        
-        Args:
-            repo_name: GitHub repository name (e.g., 'username/repo')
-            file_path: Path to the file in the repository
-            access_token: Optional GitHub access token for private repos
-            model: Optional OpenAI model to use (defaults to config)
-            
-        Returns:
-            Dict containing repository info, file info, and generated documentation
-        """
-        try:
-            # Get file content from GitHub
-            file_content = self._get_file_content_from_github(repo_name, file_path, access_token)
-            
-            # Generate documentation using OpenAI
-            documentation = self._generate_documentation_with_openai(file_content, file_path, model)
-            
-            return {
-                "repository": repo_name,
-                "file": file_path,
-                "model_used": model or current_app.config.get('THESIS_OPENAI_MODEL', 'gpt-3.5-turbo'),
-                "documentation": documentation,
-                "status": "success"
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Error generating documentation: {str(e)}")
-            raise Exception(f"Failed to generate documentation: {str(e)}")
-    
-    def _get_file_content_from_github(self, repo_name: str, file_path: str, access_token: Optional[str] = None) -> str:
-        """
-        Get file content from GitHub repository.
-        
-        Args:
-            repo_name: GitHub repository name
-            file_path: Path to the file
-            access_token: Optional GitHub access token
-            
-        Returns:
-            File content as string
-        """
-        try:
-            # Parse repository name
-            if '/' not in repo_name:
-                raise ValueError("Repository name must be in format 'owner/repo'")
-                
-            owner, repo = repo_name.split('/', 1)
-            
-            # Use the existing get_repository_details method
-            file_info = self.github_service.get_repository_details(owner, repo, file_path, access_token=access_token)
-            
-            if not file_info.get('success'):
-                raise Exception(file_info.get('message', 'Failed to get file from GitHub'))
-            
-            # Extract file data
-            file_data = file_info.get('data')
-            if not file_data:
-                raise Exception('No file data returned from GitHub')
-            
-            # Check if it's a file (not a directory)
-            if file_data.get('type') != 'file':
-                raise Exception(f'Path "{file_path}" is not a file, it is a {file_data.get("type")}')
-            
-            # Decode base64 content
-            content = file_data.get('content', '')
-            encoding = file_data.get('encoding', 'base64')
-            
-            if encoding == 'base64':
-                content = base64.b64decode(content).decode('utf-8')
-                
-            return content
-            
-        except Exception as e:
-            self.logger.error(f"Error getting file from GitHub: {str(e)}")
-            raise Exception(f"Failed to get file from GitHub: {str(e)}")
-    
     def _generate_documentation_with_openai(self, code: str, file_path: str, model: Optional[str] = None) -> str:
         """
         Generate documentation for code using OpenAI.
@@ -150,7 +71,6 @@ class OpenAIService(BaseService):
             
             # Configure model and parameters
             model_name = model or current_app.config.get('THESIS_OPENAI_MODEL', 'gpt-3.5-turbo')
-            max_tokens = current_app.config.get('THESIS_OPENAI_MAX_TOKENS', 2048)
             temperature = current_app.config.get('THESIS_OPENAI_TEMPERATURE', 0.7)
             
             # Create system prompt based on file type
@@ -183,7 +103,6 @@ Format the documentation in clear, well-structured Markdown.
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                max_tokens=max_tokens,
                 temperature=temperature
             )
             

@@ -5,10 +5,15 @@ from app.services.openai_service import OpenAIService
 from marshmallow import Schema, fields, ValidationError
 
 
-class DocumentationGenerationSchema(Schema):
-    """Schema for documentation generation request."""
+class FileItemSchema(Schema):
+    """Schema for individual file item."""
     file_name = fields.Str(required=True)
     base64 = fields.Str(required=True)
+
+
+class DocumentationGenerationSchema(Schema):
+    """Schema for documentation generation request."""
+    files = fields.List(fields.Nested(FileItemSchema), required=True, validate=lambda x: 1 <= len(x) <= 10)
 
 
 class CodeAnalysisSchema(Schema):
@@ -49,13 +54,23 @@ class OpenAIController(BaseController):
     @jwt_required()
     def generate_documentation(self):
         """
-        Generate documentation for a file using base64 content.
+        Generate documentation for multiple files using base64 content.
         
         Expected JSON payload:
         {
-            "file_name": "example.py",
-            "base64": "base64_encoded_file_content"
+            "files": [
+                {
+                    "file_name": "example1.py",
+                    "base64": "base64_encoded_file_content1"
+                },
+                {
+                    "file_name": "example2.js",
+                    "base64": "base64_encoded_file_content2"
+                }
+            ]
         }
+        
+        Maximum 10 files per request.
         """
         try:
             # Get current user
@@ -71,23 +86,61 @@ class OpenAIController(BaseController):
             except ValidationError as e:
                 return self.error_response(f'Validation error: {e.messages}', 400)
             
-            # Generate documentation
-            result = self.openai_service.generate_documentation_from_base64(
-                file_name=validated_data['file_name'],
-                base64_content=validated_data['base64']
-            )
+            # Process multiple files
+            results = []
+            errors = []
             
-            # Add user info to result
-            result['generated_by'] = current_user_id
+            for file_item in validated_data['files']:
+                try:
+                    # Generate documentation for each file
+                    result = self.openai_service.generate_documentation_from_base64(
+                        file_name=file_item['file_name'],
+                        base64_content=file_item['base64']
+                    )
+                    results.append(result)
+                    
+                except Exception as e:
+                    error_info = {
+                        'file_name': file_item['file_name'],
+                        'error': str(e)
+                    }
+                    errors.append(error_info)
+                    self.logger.error(f"Error processing file {file_item['file_name']}: {str(e)}")
             
-            return self.success_response(
-                data=result,
-                message='Documentation generated successfully'
-            )
+            # Prepare response
+            response_data = {
+                'total_files': len(validated_data['files']),
+                'successful': len(results),
+                'failed': len(errors),
+                'results': results,
+                'errors': errors if errors else None,
+                'generated_by': current_user_id
+            }
+            
+            # Determine response status based on results
+            if results and not errors:
+                # All files processed successfully
+                return self.success_response(
+                    data=response_data,
+                    message=f'Documentation generated successfully for {len(results)} files'
+                )
+            elif results and errors:
+                # Some files processed successfully, some failed
+                return self.success_response(
+                    data=response_data,
+                    message=f'Documentation generated for {len(results)} files, {len(errors)} files failed'
+                )
+            else:
+                # All files failed
+                return self.error_response(
+                    'Failed to generate documentation for all files',
+                    500,
+                    data=response_data
+                )
             
         except Exception as e:
-            self.logger.error(f"Error generating documentation: {str(e)}")
-            return self.error_response(f'Failed to generate documentation: {str(e)}', 500)
+            self.logger.error(f"Error in batch documentation generation: {str(e)}")
+            return self.error_response(f'Failed to process documentation request: {str(e)}', 500)
     
     def health_check(self):
         """

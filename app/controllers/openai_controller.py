@@ -7,10 +7,8 @@ from marshmallow import Schema, fields, ValidationError
 
 class DocumentationGenerationSchema(Schema):
     """Schema for documentation generation request."""
-    repo_name = fields.Str(required=True, validate=lambda x: '/' in x, error="Repository name must be in format 'owner/repo'")
-    file_path = fields.Str(required=True)
-    access_token = fields.Str(required=False, allow_none=True)
-    model = fields.Str(required=False, allow_none=True)
+    file_name = fields.Str(required=True)
+    base64 = fields.Str(required=True)
 
 
 class CodeAnalysisSchema(Schema):
@@ -51,14 +49,12 @@ class OpenAIController(BaseController):
     @jwt_required()
     def generate_documentation(self):
         """
-        Generate documentation for a file from GitHub repository.
+        Generate documentation for a file using base64 content.
         
         Expected JSON payload:
         {
-            "repo_name": "owner/repo",
-            "file_path": "path/to/file.py",
-            "access_token": "optional_github_token",
-            "model": "optional_thesis_openai_model"
+            "file_name": "example.py",
+            "base64": "base64_encoded_file_content"
         }
         """
         try:
@@ -76,11 +72,9 @@ class OpenAIController(BaseController):
                 return self.error_response(f'Validation error: {e.messages}', 400)
             
             # Generate documentation
-            result = self.openai_service.generate_documentation(
-                repo_name=validated_data['repo_name'],
-                file_path=validated_data['file_path'],
-                access_token=validated_data.get('access_token'),
-                model=validated_data.get('model')
+            result = self.openai_service.generate_documentation_from_base64(
+                file_name=validated_data['file_name'],
+                base64_content=validated_data['base64']
             )
             
             # Add user info to result

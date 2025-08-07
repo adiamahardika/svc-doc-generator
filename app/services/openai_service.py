@@ -20,6 +20,36 @@ class OpenAIService(BaseService):
             raise ValueError("OpenAI API key not configured")
         openai.api_key = api_key
     
+    def generate_documentation_from_base64(self, file_name: str, base64_content: str, model: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Generate documentation for a file from base64 content using OpenAI.
+        
+        Args:
+            file_name: Name of the file (e.g., 'example.py')
+            base64_content: Base64 encoded file content
+            model: Optional OpenAI model to use (defaults to config)
+            
+        Returns:
+            Dict containing file info and generated documentation
+        """
+        try:
+            # Decode base64 content
+            file_content = base64.b64decode(base64_content).decode('utf-8')
+            
+            # Generate documentation using OpenAI
+            documentation = self._generate_documentation_with_openai(file_content, file_name, model)
+            
+            return {
+                "file": file_name,
+                "model_used": model or current_app.config.get('THESIS_OPENAI_MODEL', 'gpt-3.5-turbo'),
+                "documentation": documentation,
+                "status": "success"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error generating documentation from base64: {str(e)}")
+            raise Exception(f"Failed to generate documentation: {str(e)}")
+    
     def generate_documentation(self, repo_name: str, file_path: str, access_token: Optional[str] = None, model: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate documentation for a file from GitHub repository using OpenAI.

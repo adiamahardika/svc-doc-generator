@@ -273,6 +273,9 @@ class GitHubService(BaseService):
                         }
                         transformed_contents.append(transformed_item)
                     
+                    # Sort contents: directories first, then files, both alphabetically
+                    transformed_contents.sort(key=lambda x: (x.get('type') != 'dir', x.get('name', '').lower()))
+                    
                     return {
                         'success': True,
                         'data': transformed_contents,  # Return array directly for frontend compatibility
